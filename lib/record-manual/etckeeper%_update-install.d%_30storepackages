@@ -1,0 +1,7 @@
+#!/bin/sh
+# Store the full list of packages including manual status
+cd /etc
+mkdir -p packages
+etckeeper list-installed > packages/list
+apt-mark showmanual > packages/manual
+git add packages/list packages/manual || true

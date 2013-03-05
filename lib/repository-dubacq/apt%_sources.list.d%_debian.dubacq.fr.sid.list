@@ -1,0 +1,9 @@
+# To enable this source, please use 
+# sudo wget -O /etc/apt/sources.list.d/debian.dubacq.fr.sid.list http://debian.dubacq.fr/help/debian.dubacq.fr.sid.list
+# or any other equivalent command
+deb http://debian.dubacq.fr/ sid main non-free contrib
+deb-src http://debian.dubacq.fr/ sid main non-free contrib
+# To access older versions of this archive, please use 
+# deb http://debian.dubacq.fr/ sid/snapshots/YYYYMMDD main non-free contrib
+# deb-src http://debian.dubacq.fr/ sid/snapshots/YYYYMMDD main non-free contrib
+# With YYYY the target year MM the target month DD the target day

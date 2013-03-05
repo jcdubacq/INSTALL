@@ -1,0 +1,3 @@
+#!/bin/sh
+# Store the full list of packages including manual status
+etckeeper update-install "Storing the list of installed packages before installation" || true

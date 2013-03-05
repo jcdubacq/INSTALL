@@ -1,0 +1,99 @@
+#!/bin/sh
+set -e
+cd /etc
+
+# settings
+
+ACCOUNT=jcdubacq
+ACCOUNTHOME=$(getent passwd $ACCOUNT|cut -f6 -d:)
+INSTALL=${ACCOUNTHOME}/INSTALL
+printf '[user]\n\tname = Jean-Christophe Dubacq (as root)\n\temail = jean-christophe.dubacq@ens-lyon.org\n' > /root/.gitconfig
+if [ -f $INSTALL/modified ]; then
+  REVERT=1
+  rm -f $INSTALL/modified
+else
+  REVERT=0
+  touch $INSTALL/modified
+fi
+
+export ACCOUNT ACCOUNTHOME INSTALL REVERT
+
+# run
+
+chapter() {
+bold=$(tput smso)
+offbold=$(tput rmso)
+if [ "$REVERT" = 1 ]; then
+  echo "${bold}[Revert $@]${offbold}"
+else
+  echo "${bold}[$@]${offbold}"
+fi
+}
+
+runit() {
+  BASEDIR=$1
+  TOPDIR="$INSTALL/lib/$BASEDIR"
+  if [ -f "$TOPDIR"/README ]; then COMMENT=$(cat "$TOPDIR"/README); else COMMENT="Adding modification $1"; fi
+  chapter "$1: $COMMENT"
+  for i in $TOPDIR/*; do
+    ii="${i#$TOPDIR/}"
+    j=$(echo "$ii"|sed -e 's/%_\([^_]\)/\/\1/g;s/%_\(_*\)/\1/g;s/%\(%*\)/\1/g;s/^\([^\/]\)/\/etc\/\1/g')
+    jj=$(dirname "$j")
+    case "$ii" in
+      VERSION|README)
+        true
+      ;;
+      *.run)
+	if [ "$REVERT" = 0 ]; then FILE="$j"; export FILE; sh "$i"; fi
+      ;;
+      *.revert)
+	if [ "$REVERT" = 1 ]; then FILE="$j"; export FILE; sh "$i"; fi
+      ;;
+      *.patch)
+        if [ "$REVERT" = 1 ]; then OPTION=-R;else OPTION=-N;fi
+        patch -p1 "$OPTION" < $i
+      ;;
+      *)
+      if [ "$REVERT" = 1 ]; then
+        echo "Removing $j"
+        rm "$j"
+        rmdir --ignore-fail-on-non-empty "$jj"
+      else
+        echo "Copying $i to $j"
+        mkdir -p "$jj"
+        cp "$i" "$j"
+      fi
+      ;;
+    esac
+  done
+  shift
+  etckeeper commit "$COMMENT"||true
+}
+
+# doing
+
+if [ "$REVERT" = 0 ]; then
+  chapter "Checking basic packages"
+  apt-get install gnome
+  apt-get install texlive-full
+  apt-get install vim
+  apt-get --purge remove nano
+  chapter "Initializing /etc monitoring"
+  apt-get install etckeeper
+  rm -rf /etc/.git
+  etckeeper init
+  etckeeper commit "Initial commit"
+  runit record-manual
+  runit superusers
+  runit fix-groups
+fi
+if [ "$REVERT" = 1 ]; then
+  runit record-manual
+  runit superusers
+  runit fix-groups
+  chapter "Destroying /etc monitoring"
+  git checkout $(git log |grep commit|tail -n 1|cut -f2 -d' ')
+  git status
+  echo rm -rf /etc/.git
+  echo rm -rf /root/.gitconfig
+fi

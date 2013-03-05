@@ -1,0 +1,5 @@
+#!/bin/sh
+# Store the full list of packages including manual status
+# Since apt marks the things as automatic and there are no hooks to run after apt has completed its job,
+# just wait a bit
+(sleep 10;etckeeper update-install "Storing the list of installed packages after installation"> /dev/null||true) &
