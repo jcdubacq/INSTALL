@@ -89,10 +89,10 @@ if [ "$REVERT" = 0 ]; then
     runit repository-dubacq
 fi
 if [ "$REVERT" = 1 ]; then
-    runit record-manual
     runit superusers
     runit fix-groups
     runit repository-dubacq
+    runit record-manual
     chapter "Destroying /etc monitoring"
     git checkout $(git log |grep commit|tail -n 1|cut -f2 -d' ')
     git status
