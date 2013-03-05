@@ -44,6 +44,9 @@ runit() {
             VERSION|README)
                 true
                 ;;
+            *.debconf)
+                if [ "$REVERT" = 0 ]; then debconf-set-selections < "$i"; fi
+                ;;
             *.run)
 	        if [ "$REVERT" = 0 ]; then FILE="$j"; export FILE; sh "$i"; fi
                 ;;
@@ -75,6 +78,7 @@ runit() {
 
 if [ "$REVERT" = 0 ]; then
     chapter "Checking basic packages"
+    apt-get install debconf-utils
     apt-get install gnome
     apt-get install texlive-full
     apt-get install vim
