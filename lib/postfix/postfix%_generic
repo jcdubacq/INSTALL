@@ -1,0 +1,3 @@
+/^postmaster@tenebreuse.org/ root+__HOST__@tenebreuse.org
+/^root@tenebreuse.org/ root+__HOST__@tenebreuse.org
+/^.*@__HOST__.tenebreuse.org/ jcdubacq+__HOST__@tenebreuse.org

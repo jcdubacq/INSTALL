@@ -5,6 +5,7 @@ cd /etc
 # settings
 
 ACCOUNT=jcdubacq
+HOSTINSTALL=fiona
 ACCOUNTHOME=$(getent passwd $ACCOUNT|cut -f6 -d:)
 INSTALL=${ACCOUNTHOME}/INSTALL
 printf '[user]\n\tname = Jean-Christophe Dubacq (as root)\n\temail = jean-christophe.dubacq@ens-lyon.org\n' > /root/.gitconfig
@@ -16,7 +17,7 @@ else
     touch $INSTALL/modified
 fi
 
-export ACCOUNT ACCOUNTHOME INSTALL REVERT
+export ACCOUNT ACCOUNTHOME INSTALL REVERT HOSTINSTALL
 
 # run
 
@@ -88,10 +89,12 @@ if [ "$REVERT" = 0 ]; then
     runit fix-groups
     runit repository-dubacq
     runit repository-sidexp
+    runit postfix
 fi
 if [ "$REVERT" = 1 ]; then
     runit superusers
     runit fix-groups
+    runit postfix
     runit repository-dubacq
     runit repository-sidexp
     runit record-manual

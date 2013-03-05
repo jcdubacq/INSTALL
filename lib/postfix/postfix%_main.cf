@@ -1,0 +1,25 @@
+## Set by me
+
+# All mail should appear to come from @tenebreuse.org
+myorigin = $mydomain
+myhostname = __HOST__.tenebreuse.org
+alias_maps = hash:/etc/aliases
+alias_database = hash:/etc/aliases
+inet_interfaces = loopback-only
+mydestination = __HOST__.tenebreuse.org, localhost.tenebreuse.org, localhost
+local_transport = error:local delivery is disabled
+relayhost = [127.0.0.1]:2525
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+recipient_delimiter = +
+#propagate_unmatched_extensions = generic
+smtp_generic_maps = regexp:/etc/postfix/generic
+
+## Set by debian, kept by me
+
+# Debian only adds (Debian/GNU) at the end of the default
+smtpd_banner = $myhostname ESMTP $mail_name (Debian/GNU)
+# biff should always be set to no. Does not matter here, no local delivery
+biff = no
+# As debian says, this is the work of the MUA.
+append_dot_mydomain = no
+
