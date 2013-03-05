@@ -1,0 +1,2 @@
+#!/bin/sh
+apt-get --purge remove jcdubacq-archive-keyring
