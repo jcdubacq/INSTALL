@@ -1,4 +1,4 @@
 #!/bin/sh
 invoke-rc.d postfix stop || true
-apt-get --purge remove postfix
-apt-get --purge autoremove
+$APT --purge remove postfix
+$APT --purge autoremove

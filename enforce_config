@@ -4,6 +4,7 @@ cd /etc
 
 # settings
 
+APT="apt-get --assume-yes"
 ACCOUNT=jcdubacq
 HOSTINSTALL=fiona
 ACCOUNTHOME=$(getent passwd $ACCOUNT|cut -f6 -d:)
@@ -17,7 +18,7 @@ else
     touch $INSTALL/modified
 fi
 
-export ACCOUNT ACCOUNTHOME INSTALL REVERT HOSTINSTALL
+export ACCOUNT ACCOUNTHOME INSTALL REVERT HOSTINSTALL APT
 
 # run
 
@@ -89,13 +90,15 @@ if [ "$REVERT" = 0 ]; then
     etckeeper init
     etckeeper commit "Initial commit"
     runit record-manual
+    runit network
     runit superusers
     runit fix-groups
+    runit postfix
     runit repository-dubacq
     runit repository-sidexp
-    runit postfix
 fi
 if [ "$REVERT" = 1 ]; then
+    runit network
     runit superusers
     runit fix-groups
     runit postfix
