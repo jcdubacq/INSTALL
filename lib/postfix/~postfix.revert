@@ -1,4 +1,4 @@
 #!/bin/sh
 invoke-rc.d postfix stop || true
-$APT --purge remove postfix
+$APT --purge remove postfix autossh
 $APT --purge autoremove

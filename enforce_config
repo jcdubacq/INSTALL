@@ -37,22 +37,28 @@ runit() {
     TOPDIR="$INSTALL/lib/$BASEDIR"
     if [ -f "$TOPDIR"/README ]; then COMMENT=$(cat "$TOPDIR"/README); else COMMENT="Adding modification $1"; fi
     chapter "$1: $COMMENT"
-    for i in $TOPDIR/*; do
+    find $TOPDIR -print | while read i; do
         ii="${i#$TOPDIR/}"
-        j=$(echo "$ii"|sed -e 's/%_\([^_]\)/\/\1/g;s/%_\(_*\)/\1/g;s/%\(%*\)/\1/g;s/^\([^\/]\)/\/etc\/\1/g')
-        jj=$(dirname "$j")
+        if [ "${ii#_}" != "$ii" ]; then
+            j="/root/${ii#_}"
+        else
+            j="/etc/${ii}"
+        fi
+        jj=$(dirname "$ii")
+        POSTRUN=0
+        POSTREVERT=0
         case "$ii" in
             VERSION|README)
                 true
                 ;;
+            POSTRUN)
+                if [ "$REVERT" = 0 ]; then FILE="$j"; export FILE; POSTRUN=1; fi
+                ;;
+            POSTREVERT)
+                if [ "$REVERT" = 1 ]; then FILE="$j"; export FILE; POSTREVERT=1; fi
+                ;;
             *.debconf)
                 if [ "$REVERT" = 0 ]; then debconf-set-selections < "$i"; fi
-                ;;
-            *.run)
-	        if [ "$REVERT" = 0 ]; then FILE="$j"; export FILE; sh "$i"; fi
-                ;;
-            *.revert)
-	        if [ "$REVERT" = 1 ]; then FILE="$j"; export FILE; sh "$i"; fi
                 ;;
             *.patch)
                 if [ "$REVERT" = 1 ]; then OPTION=-R;else OPTION=-N;fi
@@ -71,6 +77,12 @@ runit() {
                 ;;
         esac
     done
+    if [ "$POSTRUN" = 1 ]; then
+        sh "${TOPDIR}/POSTRUN"
+    fi
+    if [ "$POSTREVERT" = 1 ]; then
+        sh "${TOPDIR}/POSTREVERT"
+    fi
     shift
     etckeeper commit "$COMMENT"||true
 }
@@ -79,23 +91,24 @@ runit() {
 
 if [ "$REVERT" = 0 ]; then
     chapter "Checking basic packages"
-    apt-get install debconf-utils
-    apt-get install gnome
-    apt-get install texlive-full
-    apt-get install vim
-    apt-get --purge remove nano
+    ${APT} install debconf-utils
+    ${APT} install autossh
+    ${APT} install gnome
+    ${APT} install texlive-full
+    ${APT} install vim
+    ${APT} --purge remove nano
     chapter "Initializing /etc monitoring"
-    apt-get install etckeeper
+    ${APT} install etckeeper
     rm -rf /etc/.git
     etckeeper init
     etckeeper commit "Initial commit"
     runit record-manual
     runit network
+    runit repository-dubacq
+    runit repository-sidexp
     runit superusers
     runit fix-groups
     runit postfix
-    runit repository-dubacq
-    runit repository-sidexp
 fi
 if [ "$REVERT" = 1 ]; then
     runit network
