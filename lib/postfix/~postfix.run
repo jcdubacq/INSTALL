@@ -1,6 +1,7 @@
 #!/bin/sh
-apt-get --assume-yes install postfix
 for i in /etc/postfix/main.cf /etc/postfix/generic; do
   perl -pi -e 's/__HOST__/'${HOSTINSTALL}'/g' "$i"
 done
+etckeeper commit "Preseed postfix configuration"
+apt-get --assume-yes install postfix
 invoke-rc.d postfix reload
