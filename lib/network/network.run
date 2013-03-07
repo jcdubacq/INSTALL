@@ -1,3 +1,0 @@
-#!/bin/sh
-perl -pi -e 's/^/#NetworkManager#/g if (/eth0/)' /etc/network/interfaces
-# do not relaunch instantly the network, could break existing connections

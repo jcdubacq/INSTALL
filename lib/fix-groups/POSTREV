@@ -6,8 +6,8 @@ done
 for GROUP in cdrom floppy audio dip video plugdev; do
   adduser $ACCOUNT $GROUP || true
 done
-perl -pi -e 's/USERGROUPS=no/USERGROUPS=yes/' /etc/adduser.conf || true
-perl -pi -e "s/^${ACCOUNT}:x:1000:100:/${ACCOUNT}:x:1000:1000:/" /etc/passwd||true
+perl -pi -e 's/USERGROUPS=no/USERGROUPS=yes/' /etc/adduser.conf
+perl -pi -e "s/^${ACCOUNT}:x:1000:100:/${ACCOUNT}:x:1000:1000:/" /etc/passwd
 find ${ACCOUNTHOME} -gid 1000 -print0|xargs -0 --no-run-if-empty chown ${ACCOUNT}:100||true
 addgroup --gid 1000 $ACCOUNT||true
 adduser $ACCOUNT $ACCOUNT||true

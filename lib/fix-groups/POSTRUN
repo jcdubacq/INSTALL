@@ -9,4 +9,4 @@ done
 perl -pi -e 's/USERGROUPS=yes/USERGROUPS=no/' /etc/adduser.conf
 perl -pi -e "s/^${ACCOUNT}:x:1000:1000/${ACCOUNT}:x:1000:100/" /etc/passwd
 find ${ACCOUNTHOME} -gid 1000 -print0|xargs -0 --no-run-if-empty chown ${ACCOUNT}:users
-delgroup ${ACCOUNT}
+delgroup ${ACCOUNT}||true

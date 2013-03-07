@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 cd /etc
+DEBUG=echo
 
 # settings
 
@@ -8,86 +9,160 @@ APT="apt-get --assume-yes"
 ACCOUNT=jcdubacq
 HOSTINSTALL=fiona
 ACCOUNTHOME=$(getent passwd $ACCOUNT|cut -f6 -d:)
-INSTALL=${ACCOUNTHOME}/INSTALL
+INSTALL=$(dirname "$0")
+bold=$(tput smso)
+offbold=$(tput rmso)
 printf '[user]\n\tname = Jean-Christophe Dubacq (as root)\n\temail = jean-christophe.dubacq@ens-lyon.org\n' > /root/.gitconfig
-if [ -f $INSTALL/modified ]; then
-    REVERT=1
-    rm -f $INSTALL/modified
-else
-    REVERT=0
-    touch $INSTALL/modified
-fi
 
 export ACCOUNT ACCOUNTHOME INSTALL REVERT HOSTINSTALL APT
 
 # run
 
-chapter() {
-    bold=$(tput smso)
-    offbold=$(tput rmso)
-    if [ "$REVERT" = 1 ]; then
-        echo "${bold}[Revert $@]${offbold}"
+mkdir -p /var/lib/INSTALL
+
+checkPackage() {
+    local PKG
+    local REVERT
+    local PKGDIR
+    local ACTION
+    local INSTALLED
+    PKG="$1"
+    REVERT="$2"
+    PKGDIR="$3"
+    ACTION="$4"
+    INSTALLED="/var/lib/INSTALL/${PKG}"
+
+    if [ "$REVERT" = "0" ]; then
+        CURRENT=$(find "$PKGDIR" -type f -print0 |xargs -0 md5sum|md5sum -|cut -c1-32)
     else
-        echo "${bold}[$@]${offbold}"
+        CURRENT="XXX"
+    fi
+    if [ -f "${INSTALLED}" ]; then
+        VALUE=$(cat "${INSTALLED}")
+    else
+        VALUE="XXX"
+    fi
+    if [ "$ACTION" = "test" ]; then
+        if [ "$VALUE" != "$CURRENT" ]; then
+            return 1
+        else
+            return 0
+        fi
+    elif [ "$ACTION" = "stamp" ]; then
+        if [ "$CURRENT" = "XXX" ]; then
+            rm -f "${INSTALLED}"
+        else
+            echo -n "$CURRENT" > "$INSTALLED"
+        fi
+    else 
+        die "Unknown action $ACTION"
     fi
 }
 
+chapter() {
+    echo "${bold}[$@]${offbold}"
+}
+
 runit() {
-    BASEDIR=$1
-    TOPDIR="$INSTALL/lib/$BASEDIR"
-    if [ -f "$TOPDIR"/README ]; then COMMENT=$(cat "$TOPDIR"/README); else COMMENT="Adding modification $1"; fi
-    chapter "$1: $COMMENT"
-    find $TOPDIR -print | while read i; do
-        ii="${i#$TOPDIR/}"
-        if [ "${ii#_}" != "$ii" ]; then
-            j="/root/${ii#_}"
-        else
-            j="/etc/${ii}"
+    local TAG
+    local REVERT
+    local PKGDIR
+    local TAGS
+    local PKGDIR
+    local PKG
+    TAG="$1"
+    REVERT=0
+    if [ "${TAG%-}" != "${TAG}" ]; then
+        TAG="${TAG%-}"
+        REVERT=1
+    fi
+    if [ "$REVERT" = 1 ]; then
+        LIST=order.revert
+    else
+        LIST=order.run
+    fi
+    while read PKG; do
+        TAGS=" all ${PKG} "
+        PKGDIR="$INSTALL/lib/$PKG"
+        if [ -f "$PKGDIR/TAGS" ]; then
+            for NEWTAG in $(cat "$PKGDIR/TAGS"); do
+                TAGS="${TAGS}${NEWTAG} "
+            done
         fi
-        jj=$(dirname "$ii")
-        POSTRUN=0
-        POSTREVERT=0
-        case "$ii" in
-            VERSION|README)
-                true
-                ;;
-            POSTRUN)
-                if [ "$REVERT" = 0 ]; then FILE="$j"; export FILE; POSTRUN=1; fi
-                ;;
-            POSTREVERT)
-                if [ "$REVERT" = 1 ]; then FILE="$j"; export FILE; POSTREVERT=1; fi
-                ;;
-            *.debconf)
-                if [ "$REVERT" = 0 ]; then debconf-set-selections < "$i"; fi
-                ;;
-            *.patch)
-                if [ "$REVERT" = 1 ]; then OPTION=-R;else OPTION=-N;fi
-                patch -p1 "$OPTION" < $i
-                ;;
-            *)
+        if [ "${TAGS#* ${TAG} }" != "${TAGS}" ]; then
+            # The package has the requisited tag
+            checkPackage "$PKG" "$REVERT" "$PKGDIR" "test" \
+                && echo "$PKG already in requisited state" \
+                || execPackage "$PKG" "$REVERT" "$PKGDIR"
+        fi
+    done < $INSTALL/$LIST
+}
+
+execPackage() {
+    local PKG
+    local REVERT
+    local PKGDIR
+    local FILE
+    local COMMENT
+    local FILEDIR
+    local TARGET
+    local DEP
+    PKG="$1"
+    REVERT="$2"
+    PKGDIR="$3"
+    if [ -f "${PKGDIR}/DEPS" ]; then
+        chapter "${PKG}: Processing dependencies"
+        for DEP in $(cat "${PKGDIR}/DEPS"); do
+            runit "$DEP"
+        done
+    fi
+    if [ -f "${PKGDIR}/README" ]; then
+        COMMENT="${PKG}: $(cat < "${PKGDIR}/README")"
+    else
+        COMMENT="${PKG}"
+    fi
+    [ "$REVERT" = 0 ]||COMMENT="Removing ${COMMENT}"
+    chapter "$COMMENT"
+    find "$PKGDIR" -type f -print |sort| while read FILE; do
+        TARGET="/${FILE#${PKGDIR}/}"
+        THISFILE="$FILE"; export THISFILE
+        FILEDIR=$(dirname "$TARGET")
+        case "$TARGET" in 
+            /README|/KEEPDIR|/TAGS|/DEPS)
+                true;;
+            /_PRERUN|/POSTRUN|*._run)
+                [ "$REVERT" = 0 ] && $DEBUG sh "$FILE" || true;;
+            /_PREREV|/POSTREV|*._rev)
+                [ "$REVERT" = 1 ] && $DEBUG sh "$FILE" || true;;
+            /etc/*|/root/*)
                 if [ "$REVERT" = 1 ]; then
-                    echo "Removing $j"
-                    rm "$j"
-                    rmdir --ignore-fail-on-non-empty "$jj"
+                    echo "Removing $TARGET"
+                    $DEBUG rm -- "$TARGET"
+                    [ -f "$PKGDIR/KEEPDIR" ] && grep -q "^$FILEDIR$" "$PKGDIR/KEEPDIR" \
+                        && echo "Keeping $FILEDIR" \
+                        || $DEBUG rmdir --ignore-fail-on-non-empty "$FILEDIR"
                 else
-                    echo "Copying $i to $j"
-                    mkdir -p "$jj"
-                    cp "$i" "$j"
+                    echo "Copying $FILE to $TARGET"
+                    $DEBUG mkdir -p "$FILEDIR"
+                    $DEBUG cp -- "$FILE" "$TARGET"
                 fi
                 ;;
         esac
     done
-    if [ "$POSTRUN" = 1 ]; then
-        sh "${TOPDIR}/POSTRUN"
-    fi
-    if [ "$POSTREVERT" = 1 ]; then
-        sh "${TOPDIR}/POSTREVERT"
-    fi
-    shift
-    etckeeper commit "$COMMENT"||true
+    $DEBUG etckeeper commit "$COMMENT"||true
+    checkPackage "$PKG" "$REVERT" "$PKGDIR" stamp
+    return 0
 }
 
 # doing
+
+if [ -z "$1" ]; then
+    runit all
+else
+    runit "$1"
+fi
+exit 0
+
 
 if [ "$REVERT" = 0 ]; then
     chapter "Checking basic packages"
