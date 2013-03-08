@@ -1,7 +1,10 @@
 #!/bin/sh
 set -e
 cd /etc
-DEBUG=echo
+if [ "$1" = "--debug" ]; then
+    shift
+    DEBUG=echo
+fi
 
 # settings
 
@@ -146,11 +149,14 @@ execPackage() {
                     $DEBUG mkdir -p "$FILEDIR"
                     $DEBUG cp -- "$FILE" "$TARGET"
                 fi
+                if [ "${FILE%.crypt}" != "${FILE}" ]; then
+                    $DEBUG /usr/bin/decryptfile "$TARGET"
+                fi
                 ;;
         esac
     done
     $DEBUG etckeeper commit "$COMMENT"||true
-    checkPackage "$PKG" "$REVERT" "$PKGDIR" stamp
+    $DEBUG checkPackage "$PKG" "$REVERT" "$PKGDIR" stamp
     return 0
 }
 
