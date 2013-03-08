@@ -1,0 +1,3 @@
+#!/bin/sh
+etckeeper commit "Install configuration for cryptstore"
+$APT install cryptstore
