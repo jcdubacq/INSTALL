@@ -1,0 +1,7 @@
+#! /bin/sh
+if [ -x /usr/bin/git ]; then
+    git config user.name 'Jean-Christophe Dubacq (as root)'
+    git config user.email 'jean-christophe.dubacq@ens-lyon.org'
+else
+    printf '[user]\n\tname = Jean-Christophe Dubacq (as root)\n\temail = jean-christophe.dubacq@ens-lyon.org\n' > /root/.gitconfig
+fi

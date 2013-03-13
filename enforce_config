@@ -1,6 +1,5 @@
 #!/bin/sh
 set -e
-cd /etc
 if [ "$1" = "--debug" ]; then
     shift
     DEBUG=echo
@@ -13,9 +12,12 @@ ACCOUNT=jcdubacq
 HOSTINSTALL=fiona
 ACCOUNTHOME=$(getent passwd $ACCOUNT|cut -f6 -d:)
 INSTALL=$(dirname "$0")
+if [ -x /usr/bin/realpath ]; then
+    INSTALL=$(realpath "$INSTALL")
+fi
 bold=$(tput smso)
 offbold=$(tput rmso)
-printf '[user]\n\tname = Jean-Christophe Dubacq (as root)\n\temail = jean-christophe.dubacq@ens-lyon.org\n' > /root/.gitconfig
+cd /etc
 
 export ACCOUNT ACCOUNTHOME INSTALL REVERT HOSTINSTALL APT
 
@@ -66,7 +68,45 @@ chapter() {
     echo "${bold}[$@]${offbold}"
 }
 
+runtag() {
+    local TAG
+    local REVERT
+    local CMD
+    local PKG
+    TAG="$1"
+    REVERT="$2"
+    TAGDIR="${INSTALL}/tags"
+    if [ "$TAG" = "basic" ]&&[ "$REVERT" = 1 ]; then
+        echo "Basic tasks really shouldn't be removed"
+        echo "Please remove them individually"
+        tac ${TAGDIR}/basic|xargs echo
+        return
+    fi
+    if [ "$REVERT" = 1 ]; then
+        CMD=tac
+    else
+        CMD=cat
+    fi
+    if [ -f "${TAGDIR}/${TAG}" ]; then
+        $CMD "${TAGDIR}/${TAG}"| while read PKG; do
+            runitreal "$PKG" "$REVERT"
+        done
+    fi
+}
+
 runit() {
+    local TAG
+    local REVERT
+    TAG="$1"
+    REVERT=0
+    if [ "${TAG%-}" != "${TAG}" ]; then
+        TAG="${TAG%-}"
+        REVERT=1
+    fi
+    runitreal "$TAG" "$REVERT"
+}
+
+runitreal() {
     local TAG
     local REVERT
     local PKGDIR
@@ -74,31 +114,28 @@ runit() {
     local PKGDIR
     local PKG
     TAG="$1"
-    REVERT=0
-    if [ "${TAG%-}" != "${TAG}" ]; then
-        TAG="${TAG%-}"
-        REVERT=1
-    fi
-    if [ "$REVERT" = 1 ]; then
-        LIST=order.revert
+    REVERT="$2"
+    if [ "${TAG#tag:}" != "${TAG}" ]; then
+        runtag "${TAG#tag:}" "$REVERT"
     else
-        LIST=order.run
-    fi
-    while read PKG; do
-        TAGS=" all ${PKG} "
-        PKGDIR="$INSTALL/lib/$PKG"
-        if [ -f "$PKGDIR/TAGS" ]; then
-            for NEWTAG in $(cat "$PKGDIR/TAGS"); do
-                TAGS="${TAGS}${NEWTAG} "
-            done
-        fi
-        if [ "${TAGS#* ${TAG} }" != "${TAGS}" ]; then
+        find "${INSTALL}/lib" -type d -maxdepth 1 -mindepth 1 -print\
+    |while read PKG; do
+            PKG=$(basename "$PKG")
+            TAGS=" ${PKG} "
+            PKGDIR="$INSTALL/lib/$PKG"
+            if [ -f "$PKGDIR/TAGS" ]; then
+                for NEWTAG in $(cat "$PKGDIR/TAGS"); do
+                    TAGS="${TAGS}${NEWTAG} "
+                done
+            fi
+            if [ "${TAGS#* ${TAG} }" != "${TAGS}" ]; then
             # The package has the requisited tag
-            checkPackage "$PKG" "$REVERT" "$PKGDIR" "test" \
-                && echo "$PKG already in requisited state" \
-                || execPackage "$PKG" "$REVERT" "$PKGDIR"
-        fi
-    done < $INSTALL/$LIST
+                checkPackage "$PKG" "$REVERT" "$PKGDIR" "test" \
+                    && echo "$PKG already in requisited state" \
+                    || execPackage "$PKG" "$REVERT" "$PKGDIR"
+            fi
+        done
+    fi
 }
 
 execPackage() {
@@ -127,33 +164,33 @@ execPackage() {
     [ "$REVERT" = 0 ]||COMMENT="Removing ${COMMENT}"
     chapter "$COMMENT"
     find "$PKGDIR" -type f -print |sort| while read FILE; do
-        TARGET="/${FILE#${PKGDIR}/}"
-        THISFILE="$FILE"; export THISFILE
-        FILEDIR=$(dirname "$TARGET")
-        case "$TARGET" in 
-            /README|/KEEPDIR|/TAGS|/DEPS)
-                true;;
-            /_PRERUN|/POSTRUN|*._run)
-                [ "$REVERT" = 0 ] && $DEBUG sh "$FILE" || true;;
-            /_PREREV|/POSTREV|*._rev)
-                [ "$REVERT" = 1 ] && $DEBUG sh "$FILE" || true;;
-            /etc/*|/root/*)
-                if [ "$REVERT" = 1 ]; then
-                    echo "Removing $TARGET"
-                    $DEBUG rm -- "$TARGET"
-                    [ -f "$PKGDIR/KEEPDIR" ] && grep -q "^$FILEDIR$" "$PKGDIR/KEEPDIR" \
-                        && echo "Keeping $FILEDIR" \
-                        || $DEBUG rmdir --ignore-fail-on-non-empty "$FILEDIR"
-                else
-                    echo "Copying $FILE to $TARGET"
-                    $DEBUG mkdir -p "$FILEDIR"
-                    $DEBUG cp -- "$FILE" "$TARGET"
-                fi
-                if [ "${FILE%.crypt}" != "${FILE}" ]; then
-                    $DEBUG /usr/bin/decryptfile "$TARGET"
-                fi
-                ;;
-        esac
+    TARGET="/${FILE#${PKGDIR}/}"
+    THISFILE="$FILE"; export THISFILE
+    FILEDIR=$(dirname "$TARGET")
+    case "$TARGET" in 
+        /README|/KEEPDIR|/TAGS|/DEPS)
+            true;;
+        /_PRERUN|/POSTRUN|*._run)
+            [ "$REVERT" = 0 ] && $DEBUG sh "$FILE" || true;;
+        /_PREREV|/POSTREV|*._rev)
+            [ "$REVERT" = 1 ] && $DEBUG sh "$FILE" || true;;
+        /etc/*|/root/*)
+            if [ "$REVERT" = 1 ]; then
+                echo "Removing $TARGET"
+                $DEBUG rm -- "$TARGET"
+                [ -f "$PKGDIR/KEEPDIR" ] && grep -q "^$FILEDIR$" "$PKGDIR/KEEPDIR" \
+                    && echo "Keeping $FILEDIR" \
+                    || $DEBUG rmdir --ignore-fail-on-non-empty "$FILEDIR"
+            else
+                echo "Copying $FILE to $TARGET"
+                $DEBUG mkdir -p "$FILEDIR"
+                $DEBUG cp -- "$FILE" "$TARGET"
+            fi
+            if [ "${FILE%.crypt}" != "${FILE}" ]; then
+                $DEBUG /usr/bin/decryptfile "$TARGET"
+            fi
+            ;;
+    esac
     done
     $DEBUG etckeeper commit "$COMMENT"||true
     $DEBUG checkPackage "$PKG" "$REVERT" "$PKGDIR" stamp
@@ -163,7 +200,7 @@ execPackage() {
 # doing
 
 if [ -z "$1" ]; then
-    runit all
+    runit "tag:$(hostname -s)"
 else
     runit "$1"
 fi
