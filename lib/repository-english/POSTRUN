@@ -1,0 +1,2 @@
+#! /bin/sh
+find /var/lib/apt/lists/ -iname '*i18n*'|grep -v Translation-en$|xargs --no-run-if-empty rm -f --

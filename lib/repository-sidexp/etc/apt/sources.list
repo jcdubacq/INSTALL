@@ -1,0 +1,5 @@
+deb [arch=amd64,i386] http://http.debian.net/debian testing main contrib non-free
+deb-src http://http.debian.net/debian testing main contrib non-free
+
+deb http://security.debian.org/ wheezy/updates main
+deb-src http://security.debian.org/ wheezy/updates main
